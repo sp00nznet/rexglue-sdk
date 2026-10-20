@@ -1,3 +1,26 @@
+> [!NOTE]
+> **This is a personal fork of [rexglue/rexglue-sdk](https://github.com/rexglue/rexglue-sdk), kept for the
+> [Saints Row recompilation](https://github.com/sp00nznet/saintsrow).** The changes here were made with an
+> AI coding assistant. The ReXGlue maintainers have said they don't want AI-written pull requests, which
+> is fair, so these stay in this fork instead of going upstream. We don't want to add work for their
+> project, and nothing here is meant to be offered back unless they ask for it.
+>
+> Use [upstream](https://github.com/rexglue/rexglue-sdk) for anything else. Please don't report problems
+> with this fork to the ReXGlue project.
+>
+> **Branch `saintsrow`** = upstream `development` at `bd833a2` plus these four commits, and nothing else:
+>
+> | Change | Why |
+> | --- | --- |
+> | Skip zero-length indirect buffers and packet streams | A count of 0 builds a `RingBuffer` with capacity 0 and `set_write_offset` divides by zero. Hardware treats an empty IB as a no-op. |
+> | Don't reset the image heap when reading the XEX | `Reset()` clears the page table for the whole `0x8xxxxxxx` heap, including the function dispatcher allocation at `image_end`. A static recomp loads one module. |
+> | Re-attach native objects when the guest rewrites a dispatch header | Saints Row re-initialises its IO event and semaphore headers inline between waits. Each call minted a new native object (201 for one event), so waiters and signallers never met. |
+> | Log unregistered indirect call targets instead of aborting | A development aid: one run lists every missing manifest entry. **Not** a behaviour you want in a finished game. |
+>
+> It does **not** add: new features, API changes, platform support, or anything Saints Row-specific beyond the
+> dispatch-header workaround above. The rest of this README is upstream's, unchanged. The licence is
+> upstream's BSD-3-Clause ([LICENSE](LICENSE)).
+
 > [!CAUTION]
 > This project is in early development. Expect things to not work quite right and there to be significant changes and breaking public API updates as development progresses. Contributions and feedback are welcome, but please be aware that the codebase is still evolving rapidly.
 
