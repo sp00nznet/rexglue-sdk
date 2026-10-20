@@ -15,6 +15,9 @@
 
 #include <rex/assert.h>
 #include <rex/dbg.h>
+#include <mutex>
+#include <set>
+
 #include <rex/logging.h>
 #include <rex/perf/counter.h>
 #include <rex/memory.h>
@@ -34,9 +37,27 @@ FunctionDispatcher* GetBoundFunctionDispatcher() {
 
 }  // namespace
 
+// NOTE(sp00nznet): non-fatal for in-progress recomps. A guest indirect call can
+// land on an address codegen never emitted an entry point for -- typically a small
+// function only virtual dispatch reaches, which the scanner folded into its
+// neighbour. Aborting turns each one into a separate build/run cycle to discover
+// the next; returning instead lets a single run report every missing address so
+// they can be added to the manifest in one pass. Each (target, lr) pair is logged
+// once. Revert to REX_FATAL once the manifest is complete.
 static void InvalidFunctionTrap(PPCContext& ctx, uint8_t* /*base*/) {
-  REX_FATAL("Call to invalid or unregistered function at guest address 0x{:08X}",
-            ctx.last_indirect_target);
+  static std::mutex seen_mutex;
+  static std::set<uint64_t> seen;
+  uint64_t key = (uint64_t(ctx.last_indirect_target) << 32) | uint32_t(ctx.lr);
+  bool first;
+  {
+    auto lock = std::lock_guard(seen_mutex);
+    first = seen.insert(key).second;
+  }
+  if (first) {
+    REXCPU_ERROR("Call to invalid or unregistered function at guest address 0x{:08X} (from lr 0x{:08X})",
+                 ctx.last_indirect_target, uint32_t(ctx.lr));
+  }
+  ctx.r3.u64 = 0;
 }
 
 PPCFunc* ResolveIndirectFunction(uint32_t guest_address) {
