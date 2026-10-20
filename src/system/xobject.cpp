@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <unordered_map>
 #include <vector>
 
 #include <rex/chrono/clock.h>
@@ -388,14 +389,40 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state, void* na
     as_type = header->type;
   }
 
+  // NOTE(sp00nznet): guest addresses we have already associated with an object.
+  // The comment above assumes PPC code never pokes the struct, but some titles
+  // re-initialise dispatch headers inline -- Saints Row does it to its IO event
+  // and semaphore between every wait. That wipes the signature, so the branch
+  // below would mint a brand new object each time: measured 201 distinct native
+  // objects for one guest event, every IO worker parked on its own private copy,
+  // and no signal able to reach any of them. Remembering the handle lets us
+  // re-attach instead of duplicating.
+  static std::unordered_map<uint32_t, uint32_t> associated_handles;
+  uint32_t guest_address = kernel_state->memory()->HostToGuestVirtual(native_ptr);
+
   if (header->wait_list_flink == kXObjSignature) {
     // Already initialized.
     // TODO: assert if the type of the object != as_type
     uint32_t handle = header->wait_list_blink;
     auto object = kernel_state->object_table()->LookupObject<XObject>(handle);
 
+    if (object && guest_address) {
+      associated_handles[guest_address] = handle;
+    }
     // TODO(benvanik): assert nothing has been changed in the struct.
     return object;
+  } else if (auto it = associated_handles.find(guest_address);
+             guest_address && it != associated_handles.end()) {
+    // The guest cleared our signature by re-initialising the header in place.
+    // Re-attach the object it was already using rather than creating another.
+    auto object = kernel_state->object_table()->LookupObject<XObject>(it->second);
+    if (object) {
+      header->wait_list_flink = kXObjSignature;
+      header->wait_list_blink = it->second;
+      return object;
+    }
+    associated_handles.erase(it);
+    return GetNativeObject(kernel_state, native_ptr, as_type);
   } else {
     // First use, create new.
     // https://www.nirsoft.net/kernel_struct/vista/KOBJECTS.html
@@ -444,6 +471,9 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state, void* na
     // FIXME: This assumes the object contains a dispatch header (some don't!)
     StashHandle(header, object->handle());
 
+    if (object && guest_address) {
+      associated_handles[guest_address] = object->handle();
+    }
     return object_ref<XObject>(object);
   }
 }
