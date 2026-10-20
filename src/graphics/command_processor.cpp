@@ -636,6 +636,13 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index, uint32_t wr
 void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
+  // A zero-length indirect buffer has no packets. RingBuffer with capacity 0
+  // makes set_write_offset() do `% 0` (integer #DE). Real hardware tolerates
+  // empty IBs; bail out.
+  if (count == 0) {
+    return;
+  }
+
   // Execute commands!
   memory::RingBuffer reader(memory_->TranslatePhysical(ptr), count * sizeof(uint32_t));
   reader.set_write_offset(count * sizeof(uint32_t));
@@ -650,6 +657,10 @@ void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t count) {
 }
 
 void CommandProcessor::ExecutePacket(uint32_t ptr, uint32_t count) {
+  // Empty packet stream: capacity 0 would crash set_write_offset (`% 0`).
+  if (count == 0) {
+    return;
+  }
   // Execute commands!
   memory::RingBuffer reader(memory_->TranslatePhysical(ptr), count * sizeof(uint32_t));
   reader.set_write_offset(count * sizeof(uint32_t));
