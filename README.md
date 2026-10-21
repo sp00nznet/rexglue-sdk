@@ -1,6 +1,6 @@
 > [!NOTE]
 > **This is a personal fork of [rexglue/rexglue-sdk](https://github.com/rexglue/rexglue-sdk), kept for the
-> [Saints Row recompilation](https://github.com/sp00nznet/saintsrow).** The changes here were made with an
+> [Saints Row](https://github.com/sp00nznet/saintsrow) and [Vigilante 8 Arcade](https://github.com/sp00nznet/vig8) recompilations.** The changes here were made with an
 > AI coding assistant. The ReXGlue maintainers have said they don't want AI-written pull requests, which
 > is fair, so these stay in this fork instead of going upstream. We don't want to add work for their
 > project, and nothing here is meant to be offered back unless they ask for it.
@@ -8,7 +8,7 @@
 > Use [upstream](https://github.com/rexglue/rexglue-sdk) for anything else. Please don't report problems
 > with this fork to the ReXGlue project.
 >
-> **Branch `saintsrow`** = upstream `development` at `bd833a2` plus these four commits, and nothing else:
+> **Branch `saintsrow`** = upstream `development` at `bd833a2` plus these commits, and nothing else:
 >
 > | Change | Why |
 > | --- | --- |
@@ -16,6 +16,8 @@
 > | Don't reset the image heap when reading the XEX | `Reset()` clears the page table for the whole `0x8xxxxxxx` heap, including the function dispatcher allocation at `image_end`. A static recomp loads one module. |
 > | Re-attach native objects when the guest rewrites a dispatch header | Saints Row re-initialises its IO event and semaphore headers inline between waits. Each call minted a new native object (201 for one event), so waiters and signallers never met. |
 > | Log unregistered indirect call targets instead of aborting | A development aid: one run lists every missing manifest entry. **Not** a behaviour you want in a finished game. |
+> | Build libmspack from its real sources, not the symlinks (#1) | `cabextract/mspack/` is git symlinks; a Windows clone without symlink support gets one-line text files and `lzxd.c` doesn't compile. |
+> | Build the `XUsbcam` exports (#2) | `xboxkrnl_usbcam.cpp` was left out of the build, so a title importing the Vision camera API (Vigilante 8 Arcade) doesn't link. |
 >
 > It does **not** add: new features, API changes, platform support, or anything Saints Row-specific beyond the
 > dispatch-header workaround above. The rest of this README is upstream's, unchanged. The licence is
